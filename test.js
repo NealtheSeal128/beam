@@ -151,19 +151,17 @@ async function main() {
       lanAddrs.length > 0 && lanAddrs.every((a) => a.url.endsWith(`:${PORT}`)),
       JSON.stringify((sess.addresses || []).map((a) => a.url))
     );
-    // Venue wifi routinely blocks tunnels, so a tunnel-first QR is the one most
-    // likely to dead-end at exactly the wrong moment. LAN must win.
+    // With BEAM_PUBLIC_URL set the server is being hosted, so its private
+    // addresses are unreachable from a phone and the public one must lead.
     check(
-      'LAN addresses are advertised before the tunnel',
-      (sess.addresses || []).length > 1 &&
-        sess.addresses[0].iface !== 'public' &&
-        sess.addresses[sess.addresses.length - 1].iface === 'public',
-      JSON.stringify((sess.addresses || []).map((a) => a.iface))
+      'public URL is advertised first when configured',
+      sess.addresses[0] && sess.addresses[0].iface === 'public' && sess.addresses[0].url === PUBLIC_URL,
+      JSON.stringify((sess.addresses || []).map((a) => `${a.iface}:${a.url}`))
     );
     check(
-      'tunnel URL is still advertised, with no port appended',
-      (sess.addresses || []).some((a) => a.url === PUBLIC_URL),
-      JSON.stringify((sess.addresses || []).map((a) => a.url))
+      'LAN addresses are still offered as fallbacks',
+      (sess.addresses || []).slice(1).some((a) => a.iface !== 'public'),
+      JSON.stringify((sess.addresses || []).map((a) => a.iface))
     );
     // A QR encodes its payload into modules, so the URL never appears as text in
     // the markup. Verify it by regenerating a reference from the exact string we
@@ -337,6 +335,20 @@ async function main() {
     });
     const revealBody = await json(reveal);
     check('reveal responds ok', reveal.ok && revealBody.ok, JSON.stringify(revealBody));
+
+    const dl = await fetch(`${BASE}/api/file/${meta.fileId}`);
+    const dlBytes = Buffer.from(await dl.arrayBuffer());
+    check('download endpoint serves the file', dl.ok, `HTTP ${dl.status}`);
+    check('download bytes match what was sent', dlBytes.equals(payload), `${dlBytes.length} vs ${payload.length}`);
+    check(
+      'download is an attachment with the right filename',
+      /attachment/.test(dl.headers.get('content-disposition') || '') &&
+        (dl.headers.get('content-disposition') || '').includes('my-video.mp4'),
+      dl.headers.get('content-disposition')
+    );
+
+    const missingDl = await fetch(`${BASE}/api/file/${crypto.randomUUID()}`);
+    check('unknown file id 404s on download', missingDl.status === 404, `HTTP ${missingDl.status}`);
 
     /* ── 6. thumbnail previews ─────────────────────────────────────── */
     // The receiving card requests a preview while bytes are still arriving, so

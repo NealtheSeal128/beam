@@ -16,6 +16,16 @@ const { listAddresses } = require('./network');
 // non-empty string is truthy) and advertise unusable `http://host:0` URLs.
 const PORT = Number(process.env.PORT) > 0 ? Number(process.env.PORT) : 3000;
 
+/**
+ * Path this app is mounted under, e.g. '/beam'.
+ *
+ * Some hosts only forward :80, so the app has to live behind a path prefix on
+ * an existing domain. nginx is configured to strip the prefix before proxying,
+ * so the server itself stays prefix-agnostic; all this does is tell the page
+ * where it lives, which the client reads back from <base href>.
+ */
+const BASE_PATH = ('/' + String(process.env.BEAM_BASE_PATH || '').trim().replace(/^\/+|\/+$/g, '')).replace(/\/$/, '');
+
 // No 0/O, 1/I/L — these codes get read aloud across a room and typed on a phone.
 const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const CODE_LEN = 6;
@@ -27,28 +37,32 @@ const CHUNK_LIMIT = '12mb';
 const DEST_DIR = process.env.BEAM_DEST || path.join(os.homedir(), 'Downloads', 'Beam');
 
 /**
+ * Per-file ceiling. Lowered when hosted on a small disk: at the default 2 GB a
+ * couple of concurrent sessions could fill the volume and take the host down.
+ */
+const MAX_BYTES = Number(process.env.BEAM_MAX_BYTES) > 0 ? Number(process.env.BEAM_MAX_BYTES) : 2 * 1024 * 1024 * 1024;
+
+/**
  * Every URL another device could reach this server on, most reliable first.
  *
- * LAN addresses come first deliberately. A tunnel is the fallback, not the
- * headline: venue wifi frequently blocks or throttles tunnels outright, so a
- * tunnel-first QR is the one most likely to dead-end exactly when it matters.
- * On the same network -- a hotspot, or the venue's own wifi between two of your
- * own devices -- the LAN address is instant and offline-proof.
+ * Ordering depends on whether BEAM_PUBLIC_URL is set, because that changes what
+ * "reachable" means:
  *
- * BEAM_PUBLIC_URL still adds the public address, just after the LAN ones, so it
- * is available without being the thing that breaks.
+ * - Set: you are hosting this somewhere, and the private addresses below it
+ *   (10.x, 192.168.x) are unreachable from any phone off that network. The
+ *   public URL has to lead or the QR is a dead end.
+ * - Unset: the server is the receiving device itself, so LAN addresses are the
+ *   fast, offline-proof path and lead. A tunnel there is only a backup -- venue
+ *   wifi frequently blocks tunnels outright.
  */
 function allTargets() {
-  const targets = listAddresses(PORT);
+  const lan = listAddresses(PORT);
   const pub = (process.env.BEAM_PUBLIC_URL || '').trim().replace(/\/+$/, '');
-  if (pub) {
-    targets.push({
-      iface: 'public',
-      address: pub.replace(/^https?:\/\//i, ''),
-      url: pub,
-    });
-  }
-  return targets;
+
+  if (!pub) return lan;
+
+  const publicTarget = { iface: 'public', address: pub.replace(/^https?:\/\//i, ''), url: pub };
+  return [publicTarget, ...lan];
 }
 
 /** code -> { code, createdAt, files: Map<fileId, file>, clients: Set<res>, totalBytes } */
@@ -149,6 +163,29 @@ const app = express();
 app.disable('x-powered-by');
 app.use(express.json({ limit: '256kb' }));
 
+const INDEX_PATH = path.join(__dirname, 'public', 'index.html');
+
+/** Serve the page with a <base href> matching where it is actually mounted. */
+async function sendIndex(res) {
+  try {
+    let html = await fsp.readFile(INDEX_PATH, 'utf8');
+    const base = `${BASE_PATH || ''}/`;
+    const tag = `<base href="${base}">`;
+    html = html.includes('<base ')
+      ? html.replace(/<base href="[^"]*">/, tag)
+      : html.replace(/<title>/, `${tag}\n<title>`);
+    res.type('html').set('Cache-Control', 'no-store, must-revalidate').send(html);
+  } catch (err) {
+    res.status(500).type('text/plain').send(`could not read index.html: ${err.message}`);
+  }
+}
+
+// The page must be rendered by sendIndex so it carries the right <base href>.
+// This has to be registered *before* express.static, otherwise the static
+// handler answers '/' with the raw file and the base tag is never injected.
+app.get('/', (req, res) => sendIndex(res));
+app.get('/s/:code', (req, res) => sendIndex(res));
+
 // Never cache the client bundle. During a live demo a stale cached app.js is
 // far worse than a few extra kilobytes: the page silently runs old code and
 // the fix you just made appears not to work.
@@ -158,11 +195,6 @@ app.use(
     setHeaders: (res) => res.setHeader('Cache-Control', 'no-store, must-revalidate'),
   })
 );
-
-/** Send page is the same single-page app; it reads location.pathname on boot. */
-app.get('/s/:code', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
 
 app.get('/api/network', (req, res) => {
   res.json({ port: PORT, destDir: DEST_DIR, addresses: allTargets() });
@@ -242,7 +274,7 @@ app.post('/api/send/:code/meta', async (req, res) => {
   const { name, size, type } = req.body || {};
   const bytes = Number(size);
   if (!Number.isFinite(bytes) || bytes < 0) return res.status(400).json({ error: 'bad size' });
-  if (bytes > 2 * 1024 * 1024 * 1024) return res.status(413).json({ error: 'file too large' });
+  if (bytes > MAX_BYTES) return res.status(413).json({ error: 'file too large' });
 
   const file = {
     id: crypto.randomUUID(),
@@ -347,7 +379,27 @@ app.get('/api/thumb/:id', (req, res) => {
   res.sendFile(path.resolve(target));
 });
 
-/** Light the file up in Windows Explorer. The demo moment. */
+/**
+ * Download a finished file.
+ *
+ * This is the path that matters when Beam is hosted somewhere else: a remote
+ * server cannot open Explorer on the receiving machine, so the receiving
+ * browser pulls the bytes and the OS files them under the receiver's own
+ * Downloads folder. Works identically for a locally-run server.
+ */
+app.get('/api/file/:id', (req, res) => {
+  const file = findFile(req.params.id);
+  if (!file || !file.path) return res.status(404).json({ error: 'no completed file with that id' });
+  const target = path.resolve(file.path);
+  if (!target.startsWith(path.resolve(DEST_DIR))) return res.status(403).json({ error: 'refused' });
+  if (!fs.existsSync(target)) return res.status(404).json({ error: 'file no longer exists' });
+
+  res.download(target, file.name, (err) => {
+    if (err && !res.headersSent) res.status(500).end();
+  });
+});
+
+/** Light the file up in Windows Explorer. Only meaningful on the same machine. */
 app.post('/api/reveal', async (req, res) => {
   const { fileId } = req.body || {};
   const file = findFile(fileId);
@@ -368,7 +420,9 @@ app.post('/api/reveal', async (req, res) => {
   res.json({ ok: true, path: target });
 });
 
-app.get('/api/health', (req, res) => res.json({ ok: true, sessions: sessions.size, destDir: DEST_DIR }));
+app.get('/api/health', (req, res) =>
+  res.json({ ok: true, sessions: sessions.size, destDir: DEST_DIR, maxBytes: MAX_BYTES })
+);
 
 /* --------------------------------------------------------------- lifecycle */
 

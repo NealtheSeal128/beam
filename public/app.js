@@ -1,5 +1,12 @@
 'use strict';
 
+/**
+ * Where this page is mounted. The server injects <base href> so the same build
+ * works at the domain root and under a path prefix like /beam. Every request
+ * URL is built from this, never from the bare origin.
+ */
+const BASE = document.baseURI.replace(/\/+$/, '');
+
 /* ------------------------------------------------------------ formatting */
 
 function fmtBytes(n) {
@@ -36,7 +43,7 @@ function isImage(type) {
 }
 
 async function api(url, options) {
-  const res = await fetch(url, {
+  const res = await fetch(BASE + url, {
     headers: options && options.body ? { 'Content-Type': 'application/json' } : undefined,
     ...options,
   });
@@ -104,7 +111,7 @@ function initReceive() {
   }
 
   function listen(code) {
-    const es = new EventSource(`/api/events/${code}`);
+    const es = new EventSource(`${BASE}/api/events/${code}`);
 
     es.addEventListener('state', (e) => paint(JSON.parse(e.data)));
     es.addEventListener('file', (e) => paint(JSON.parse(e.data)));
@@ -193,7 +200,7 @@ function initReceive() {
       img.remove();
       if (attempt > 0 && !card.thumb.firstChild) card.thumb.textContent = kindOf(f.type, f.name);
     };
-    img.src = `/api/thumb/${encodeURIComponent(f.id)}?r=${attempt}`;
+    img.src = `${BASE}/api/thumb/${encodeURIComponent(f.id)}?r=${attempt}`;
     card.thumb.appendChild(img);
   }
 
@@ -209,13 +216,22 @@ function initReceive() {
         loadThumb(card, f, 1);
         card.actions.innerHTML = '';
 
+        // Download works in every deployment: the browser fetches the bytes and
+        // the OS files them in this machine's Downloads folder.
+        const dl = document.createElement('a');
+        dl.className = 'btn';
+        dl.textContent = 'Download';
+        dl.href = `${BASE}/api/file/${encodeURIComponent(f.id)}`;
+        dl.setAttribute('download', f.name);
+
         const open = document.createElement('button');
-        open.className = 'btn';
+        open.className = 'btn ghost';
         open.textContent = 'Show in folder';
+        open.title = 'Only works when the server is running on this machine';
         open.onclick = () =>
           api('/api/reveal', { method: 'POST', body: JSON.stringify({ fileId: f.id }) }).catch(() => {});
 
-        card.actions.append(open);
+        card.actions.append(dl, open);
       }
     } else {
       card.sub.textContent = `${fmtBytes(f.received)} of ${fmtBytes(f.size)} · ${pct}%`;
@@ -362,8 +378,8 @@ function initSend(initialCode) {
       const workers = Array.from({ length: Math.min(CONCURRENCY, Math.max(1, slices.length)) }, async () => {
         while (cursor < slices.length) {
           const { offset, blob } = slices[cursor++];
-          await putChunk(
-            `/api/send/${code}/file/${meta.fileId}/chunk?offset=${offset}`,
+        await putChunk(
+          `${BASE}/api/send/${code}/file/${meta.fileId}/chunk?offset=${offset}`,
             blob,
             (e) => {
               sentAt.set(offset, e.loaded);
@@ -453,7 +469,11 @@ function initSend(initialCode) {
   // The send panel must be wired on every page, not just /s/CODE: the Send tab
   // is how two computers pair when neither has a camera pointed at the other.
   // /s/CODE additionally prefills the code and skips straight to sending.
-  const m = window.location.pathname.match(/^\/s\/([A-Za-z0-9]{4,10})\/?$/);
+  // Match against the path relative to <base href> so a path-prefix mount works.
+  const relPath = window.location.pathname.startsWith(BASE)
+    ? window.location.pathname.slice(BASE.length)
+    : window.location.pathname;
+  const m = relPath.match(/^\/s\/([A-Za-z0-9]{4,10})\/?$/);
   initSend(m ? m[1].toUpperCase() : '');
   if (m) {
     show('send');
