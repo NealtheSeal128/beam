@@ -88,7 +88,7 @@ headline.
 |---|---|
 | `PORT` | Listen port (default `3000`) |
 | `BEAM_DEST` | Where files are saved (default `~/Downloads/Beam`) |
-| `BEAM_PUBLIC_URL` | Public/tunnel URL to advertise as the primary QR |
+| `BEAM_PUBLIC_URL` | Public/tunnel URL to advertise as a secondary QR |
 
 ---
 
@@ -129,7 +129,8 @@ laptop (receiver)                          phone (sender)
 ```
 
 The QR carries the whole pairing — scanning it is the auth. The 6-character
-code is the fallback for when a camera won't focus.
+code is the fallback: type it on the phone when the camera won't focus, or
+into the Send tab when the other device is a computer rather than a phone.
 
 **One server, many addresses.** The receiving screen renders a QR for *every*
 IPv4 address the laptop has, so a judge on a network that blocks one address
