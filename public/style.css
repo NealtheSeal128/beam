@@ -1,0 +1,359 @@
+/* ─────────────────────────────  tokens  ───────────────────────────── */
+:root {
+  --bg: #0a0b0f;
+  --card: #14161d;
+  --card-2: #1b1e27;
+  --line: #262a35;
+  --text: #f0f2f7;
+  --muted: #8b90a3;
+  --accent-1: #7c5cff;
+  --accent-2: #22d3ee;
+  --ok: #34d399;
+  --err: #f87171;
+  --radius: 16px;
+  --grad: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /* iOS: stop the page rubber-banding while a transfer runs */
+  overscroll-behavior-y: none;
+}
+
+body {
+  min-height: 100dvh;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.view {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 20px 20px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  min-height: 100dvh;
+}
+.view[hidden] { display: none; }
+
+/* ─────────────────────────────  topbar  ───────────────────────────── */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.brand {
+  font-weight: 650;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.dot {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--grad);
+  box-shadow: 0 0 14px rgba(124, 92, 255, 0.9);
+}
+.badge {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--muted);
+}
+.badge.live { color: var(--ok); border-color: rgba(52, 211, 153, 0.35); }
+
+/* ─────────────────────────────  hero  ───────────────────────────── */
+.hero { text-align: center; }
+.hero-title {
+  margin: 0 0 6px;
+  font-size: clamp(26px, 6vw, 34px);
+  letter-spacing: -0.03em;
+  font-weight: 700;
+}
+.hero-sub {
+  margin: 0 0 22px;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+/* QR must be pure black on pure white: iPhone cameras need the contrast. */
+.qr-stack { display: flex; justify-content: center; }
+.qr-card {
+  background: #fff;
+  padding: 14px;
+  border-radius: 20px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.qr-card svg { display: block; width: min(72vw, 300px); height: auto; }
+.qr-iface {
+  font-size: 12px;
+  color: #55596b;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.qr-skeleton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  color: var(--muted);
+  font-size: 14px;
+  padding: 60px 0;
+}
+.spinner {
+  width: 22px; height: 22px;
+  border: 2.5px solid var(--line);
+  border-top-color: var(--accent-2);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.code-block { margin-top: 24px; }
+.pair-code {
+  font-size: clamp(38px, 11vw, 56px);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  margin-left: 0.14em; /* optical: cancel the trailing letter-space */
+  background: var(--grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.code-label {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.more { margin-top: 20px; }
+.more summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 14px;
+  list-style: none;
+  text-align: center;
+  padding: 8px;
+}
+.more summary::-webkit-details-marker { display: none; }
+.more summary:hover { color: var(--text); }
+.alt-qrs {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 14px;
+}
+.alt-qrs .qr-card { padding: 9px; }
+.alt-qrs .qr-card svg { width: 116px; }
+
+/* ─────────────────────────────  inbox  ───────────────────────────── */
+.inbox-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.inbox-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+.relay { color: var(--muted); font-size: 12.5px; }
+.relay b { color: var(--ok); font-weight: 650; }
+
+.file-list { display: flex; flex-direction: column; gap: 12px; }
+.empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 34px 18px;
+  border: 1.5px dashed var(--line);
+  border-radius: var(--radius);
+  font-size: 14px;
+}
+.empty-mark {
+  font-size: 22px;
+  letter-spacing: 3px;
+  opacity: 0.4;
+  margin-bottom: 8px;
+}
+
+.file-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 15px 16px;
+  animation: rise 0.42s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+.fc-head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 11px;
+}
+.fc-thumb {
+  width: 40px; height: 40px;
+  flex: 0 0 40px;
+  border-radius: 10px;
+  background: var(--card-2);
+  display: grid;
+  place-items: center;
+  font-size: 19px;
+  overflow: hidden;
+}
+.fc-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.fc-meta { min-width: 0; flex: 1; }
+.fc-name {
+  font-size: 14.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fc-sub { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+
+.bar {
+  height: 6px;
+  background: var(--card-2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.bar-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: var(--grad);
+  transition: width 0.24s ease;
+}
+.file-card.done .bar-fill { background: var(--ok); }
+
+.fc-actions { margin-top: 13px; }
+.btn {
+  appearance: none;
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 620;
+  font-family: inherit;
+  color: #0a0b0f;
+  background: var(--grad);
+  cursor: pointer;
+}
+.btn:active { transform: scale(0.97); }
+.btn.ghost {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+
+/* ─────────────────────────────  send view  ───────────────────────────── */
+.send-body { flex: 1; }
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 46px 22px;
+  border: 2px dashed var(--line);
+  border-radius: 20px;
+  cursor: pointer;
+  transition: border-color 0.18s, background 0.18s;
+  text-align: center;
+}
+.dropzone:active, .dropzone.hot {
+  border-color: var(--accent-2);
+  background: rgba(34, 211, 238, 0.05);
+}
+.dz-icon {
+  font-size: 26px;
+  width: 46px; height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--card);
+  margin-bottom: 6px;
+}
+.dz-title { font-size: 16px; font-weight: 640; }
+.dz-sub { font-size: 13px; color: var(--muted); }
+
+.send-progress { margin-top: 24px; }
+.sp-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 9px;
+  gap: 12px;
+}
+.sp-name {
+  font-size: 14.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sp-pct { font-size: 14px; color: var(--muted); flex: 0 0 auto; }
+.sp-foot {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 9px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.sp-done { color: var(--ok); font-weight: 650; }
+
+.error {
+  margin-top: 18px;
+  padding: 13px 15px;
+  border-radius: 12px;
+  background: rgba(248, 113, 113, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  color: #fca5a5;
+  font-size: 14px;
+}
+
+.foot {
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+  opacity: 0.75;
+  word-break: break-all;
+}
+.privacy {
+  margin: 0 0 6px;
+  color: var(--ok);
+  opacity: 0.9;
+  font-weight: 600;
+}
+
+@media (min-width: 620px) {
+  .file-list { gap: 14px; }
+}

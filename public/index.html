@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0a0b0f" />
+<title>Beam</title>
+<link rel="stylesheet" href="/style.css" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>📡</text></svg>" />
+</head>
+<body>
+
+<!-- ─────────────────────────────  RECEIVE  ───────────────────────────── -->
+<main id="view-receive" class="view">
+  <header class="topbar">
+    <div class="brand"><span class="dot"></span> Beam</div>
+    <div class="topbar-meta"><span id="route-badge" class="badge">direct</span></div>
+  </header>
+
+  <section class="hero">
+    <h1 class="hero-title">Waiting to receive</h1>
+    <p class="hero-sub">Point your phone's camera at the code.</p>
+
+    <div id="qr-stack" class="qr-stack" aria-live="polite">
+      <div class="qr-skeleton"><div class="spinner"></div><span>Finding your network…</span></div>
+    </div>
+
+    <div class="code-block">
+      <div id="pair-code" class="pair-code">······</div>
+      <div class="code-label">or type this code on your phone</div>
+    </div>
+
+    <details id="more-addresses" class="more" hidden>
+      <summary>Another device on your network?</summary>
+      <div id="alt-qrs" class="alt-qrs"></div>
+    </details>
+  </section>
+
+  <section class="inbox">
+    <div class="inbox-head">
+      <h2>Incoming</h2>
+      <span id="received-stat" class="relay">received on this laptop: <b>0 B</b></span>
+    </div>
+    <div id="file-list" class="file-list">
+      <div class="empty" id="empty-state">
+        <div class="empty-mark">▁▁▁</div>
+        <p>Nothing yet. Scan the code above.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <p class="privacy">no cloud &middot; no account &middot; nothing left your network</p>
+    <span id="dest-path" class="mono"></span>
+  </footer>
+</main>
+
+<!-- ─────────────────────────────  SEND  ───────────────────────────── -->
+<main id="view-send" class="view" hidden>
+  <header class="topbar">
+    <div class="brand"><span class="dot"></span> Beam</div>
+    <div class="topbar-meta"><span id="code-chip" class="badge">······</span></div>
+  </header>
+
+  <section class="send-body">
+    <h1 class="hero-title">Sending to a laptop</h1>
+    <p class="hero-sub">No app. No account. Pick a file.</p>
+
+    <label id="dropzone" class="dropzone" for="file-input">
+      <input id="file-input" type="file" hidden />
+      <div class="dz-icon">↑</div>
+      <div class="dz-title">Choose a file</div>
+      <div class="dz-sub">Video, photo, anything</div>
+    </label>
+
+    <div id="send-progress" class="send-progress" hidden>
+      <div class="sp-head">
+        <span id="send-name" class="sp-name">—</span>
+        <span id="send-pct" class="sp-pct">0%</span>
+      </div>
+      <div class="bar"><div id="send-bar" class="bar-fill"></div></div>
+      <div class="sp-foot">
+        <span id="send-detail" class="mono">—</span>
+        <span id="send-done" class="sp-done" hidden>✓ Delivered</span>
+      </div>
+    </div>
+
+    <div id="send-error" class="error" hidden></div>
+  </section>
+
+  <footer class="foot">
+    <span class="mono">bytes go straight to the laptop — not through us</span>
+  </footer>
+</main>
+
+<script src="/app.js"></script>
+</body>
+</html>
