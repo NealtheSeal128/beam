@@ -160,18 +160,23 @@ the file card animates in as bytes land rather than appearing at the end.
 
 A serverless function runs in someone else's datacenter, so it cannot write to
 your Downloads folder or open Explorer on your machine -- which is the entire
-behaviour of this app. On top of that, serverless request bodies are capped
-around 4.5 MB (any phone video exceeds it immediately) and Server-Sent Events
-do not survive a function invocation. Deploying there yields a page that loads
-and transfers nothing. A tunnel pointed at your own laptop gets a public URL
-without any of those tradeoffs.
+behaviour of this app. On top of that, Vercel caps a function's request and
+response body at 4.5 MB (any phone video exceeds it immediately), and
+Server-Sent Events do not survive a function invocation. Deploying there yields
+a page that loads and transfers nothing. A tunnel pointed at your own laptop
+gets a public URL without any of those tradeoffs.
 
 ## Known limits
 
-- Both devices must be on a network that can reach each other. No internet
-  required; cross-network is not implemented yet.
+- Over plain LAN, both devices must be on a network that can reach each other.
+  Across networks, use a tunnel (see above). Quick tunnels are ephemeral -- they
+  die with the process -- so they are a testing and demo tool, not production
+  infrastructure.
 - 2 GB per file cap.
-- A 20-minute session timeout; expired codes are refused with a clear message.
+- A 10-minute session timeout; expired codes are refused with a clear message.
+- No authentication beyond the 6-character code: anyone who reads it can send
+  you a file. That is exactly the AirDrop model, but it is a real limitation on
+  an open network.
 - Tested against Chromium. Safari/Firefox should work — the transfer uses only
   `fetch`, `XMLHttpRequest` and SSE, with no browser-specific APIs — but the
   demo target is iPhone Safari, which deserves a manual pass before you present.
