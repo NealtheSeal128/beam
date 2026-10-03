@@ -26,6 +26,28 @@ const CHUNK_LIMIT = '12mb';
 /** Where received files land — a real folder, so the demo can open it in Explorer. */
 const DEST_DIR = process.env.BEAM_DEST || path.join(os.homedir(), 'Downloads', 'Beam');
 
+/**
+ * Every URL a phone could reach this server on, most reliable first.
+ *
+ * BEAM_PUBLIC_URL lets a tunnel (cloudflared, ngrok) advertise a public HTTPS
+ * address. It is listed first because it works from any network, while LAN
+ * addresses only work when the phone happens to be on the same one. The server
+ * still runs on this laptop either way, so files still land here.
+ */
+function allTargets() {
+  const targets = [];
+  const pub = (process.env.BEAM_PUBLIC_URL || '').trim().replace(/\/+$/, '');
+  if (pub) {
+    targets.push({
+      iface: 'public',
+      address: pub.replace(/^https?:\/\//i, ''),
+      url: pub,
+    });
+  }
+  targets.push(...listAddresses(PORT));
+  return targets;
+}
+
 /** code -> { code, createdAt, files: Map<fileId, file>, clients: Set<res>, totalBytes } */
 const sessions = new Map();
 
@@ -132,7 +154,7 @@ app.get('/s/:code', (req, res) => {
 });
 
 app.get('/api/network', (req, res) => {
-  res.json({ port: PORT, destDir: DEST_DIR, addresses: listAddresses(PORT) });
+  res.json({ port: PORT, destDir: DEST_DIR, addresses: allTargets() });
 });
 
 /** One round trip: the code *and* a scannable QR for every address it is valid on. */
@@ -143,7 +165,7 @@ app.post('/api/session', async (req, res) => {
     sessions.set(code, session);
 
     const addresses = await Promise.all(
-      listAddresses(PORT).map(async (a) => ({
+      allTargets().map(async (a) => ({
         ...a,
         qr: await QRCode.toString(`${a.url}/s/${code}`, {
           type: 'svg',
@@ -349,7 +371,7 @@ if (require.main === module) {
   setInterval(sweep, 30000).unref();
 
   app.listen(PORT, '0.0.0.0', async () => {
-    const addresses = listAddresses(PORT);
+    const addresses = allTargets();
     const line = '─'.repeat(52);
     console.log(`\n  Beam  ${line}`);
     console.log(`  ${''}  Saving to  ${DEST_DIR}`);

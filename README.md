@@ -44,6 +44,40 @@ Files are saved to `~/Downloads/Beam/`. Override with `BEAM_DEST`.
 
 ---
 
+## Sharing from anywhere (public URL)
+
+Same network is the fast path. To be reachable from *any* network, put a tunnel
+in front of the laptop. The tunnel terminates on your machine, so **files still
+land in your own Downloads folder** -- which is the whole point, and the reason
+this app cannot simply be hosted somewhere else.
+
+```bash
+# terminal 1
+npm start
+
+# terminal 2  (prints a public https://...trycloudflare.com URL)
+cloudflared tunnel --url http://localhost:3000 --no-autoupdate
+```
+
+Copy that URL, then hand it to the server so the QR encodes it:
+
+```bash
+BEAM_PUBLIC_URL="https://your-tunnel.trycloudflare.com" npm start
+```
+
+The public URL is listed **first** in the banner and gets the primary QR,
+because it works from any network while the LAN addresses only work when the
+phone happens to be on the same one. Anyone on the internet can then scan the
+code and the file arrives on your laptop.
+
+| Variable | Purpose |
+|---|---|
+| `PORT` | Listen port (default `3000`) |
+| `BEAM_DEST` | Where files are saved (default `~/Downloads/Beam`) |
+| `BEAM_PUBLIC_URL` | Public/tunnel URL to advertise as the primary QR |
+
+---
+
 ## The demo (90 seconds)
 
 > "Show of hands — who's ever needed to get a file off their phone onto their
@@ -117,9 +151,20 @@ the file card animates in as bytes land rather than appearing at the end.
   300 KB/s, so a 40 MB video would take two minutes. It is the wrong mechanism
   for the job, not a missing feature.
 - **Cloud relay.** There is no cloud in this build. The receiving laptop is the
-  server, which is what makes the privacy claim true rather than decorative.
-  A relay mode (tunnelled to the same laptop) is the natural next step.
+  server, which is what makes the privacy claim true rather than decorative. A
+  tunnel (see above) gives you a public URL without changing that: bytes still
+  terminate on your own machine.
 - **Accounts.** The 6-character code is the whole auth model.
+
+## Why not Vercel (or any serverless host)
+
+A serverless function runs in someone else's datacenter, so it cannot write to
+your Downloads folder or open Explorer on your machine -- which is the entire
+behaviour of this app. On top of that, serverless request bodies are capped
+around 4.5 MB (any phone video exceeds it immediately) and Server-Sent Events
+do not survive a function invocation. Deploying there yields a page that loads
+and transfers nothing. A tunnel pointed at your own laptop gets a public URL
+without any of those tradeoffs.
 
 ## Known limits
 

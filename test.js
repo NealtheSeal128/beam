@@ -19,6 +19,8 @@ const crypto = require('crypto');
 const PORT = 3999;
 const BASE = `http://127.0.0.1:${PORT}`;
 const DEST = path.join(os.tmpdir(), `beam-test-${Date.now()}`);
+// A tunnel fronting the laptop. Exercises the public-URL code path.
+const PUBLIC_URL = 'https://beam-test.example.com';
 
 let passed = 0;
 let failed = 0;
@@ -118,7 +120,7 @@ async function main() {
   await fsp.mkdir(DEST, { recursive: true });
 
   const server = spawn(process.execPath, [path.join(__dirname, 'server.js')], {
-    env: { ...process.env, PORT: String(PORT), BEAM_DEST: DEST },
+    env: { ...process.env, PORT: String(PORT), BEAM_DEST: DEST, BEAM_PUBLIC_URL: PUBLIC_URL },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let serverErr = '';
@@ -143,9 +145,15 @@ async function main() {
     );
     check('dest dir reported', typeof sess.destDir === 'string' && sess.destDir.length > 0);
     check('at least one address', (sess.addresses || []).length > 0);
+    const lanAddrs = (sess.addresses || []).filter((a) => a.iface !== 'public');
     check(
-      'every address URL uses the real port',
-      (sess.addresses || []).every((a) => a.url.endsWith(`:${PORT}`)),
+      'every LAN address uses the real port',
+      lanAddrs.length > 0 && lanAddrs.every((a) => a.url.endsWith(`:${PORT}`)),
+      JSON.stringify((sess.addresses || []).map((a) => a.url))
+    );
+    check(
+      'public tunnel URL is advertised first, with no port appended',
+      sess.addresses[0] && sess.addresses[0].iface === 'public' && sess.addresses[0].url === PUBLIC_URL,
       JSON.stringify((sess.addresses || []).map((a) => a.url))
     );
     // A QR encodes its payload into modules, so the URL never appears as text in
