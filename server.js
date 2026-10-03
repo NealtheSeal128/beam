@@ -27,15 +27,19 @@ const CHUNK_LIMIT = '12mb';
 const DEST_DIR = process.env.BEAM_DEST || path.join(os.homedir(), 'Downloads', 'Beam');
 
 /**
- * Every URL a phone could reach this server on, most reliable first.
+ * Every URL another device could reach this server on, most reliable first.
  *
- * BEAM_PUBLIC_URL lets a tunnel (cloudflared, ngrok) advertise a public HTTPS
- * address. It is listed first because it works from any network, while LAN
- * addresses only work when the phone happens to be on the same one. The server
- * still runs on this laptop either way, so files still land here.
+ * LAN addresses come first deliberately. A tunnel is the fallback, not the
+ * headline: venue wifi frequently blocks or throttles tunnels outright, so a
+ * tunnel-first QR is the one most likely to dead-end exactly when it matters.
+ * On the same network -- a hotspot, or the venue's own wifi between two of your
+ * own devices -- the LAN address is instant and offline-proof.
+ *
+ * BEAM_PUBLIC_URL still adds the public address, just after the LAN ones, so it
+ * is available without being the thing that breaks.
  */
 function allTargets() {
-  const targets = [];
+  const targets = listAddresses(PORT);
   const pub = (process.env.BEAM_PUBLIC_URL || '').trim().replace(/\/+$/, '');
   if (pub) {
     targets.push({
@@ -44,7 +48,6 @@ function allTargets() {
       url: pub,
     });
   }
-  targets.push(...listAddresses(PORT));
   return targets;
 }
 
@@ -146,7 +149,15 @@ const app = express();
 app.disable('x-powered-by');
 app.use(express.json({ limit: '256kb' }));
 
-app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
+// Never cache the client bundle. During a live demo a stale cached app.js is
+// far worse than a few extra kilobytes: the page silently runs old code and
+// the fix you just made appears not to work.
+app.use(
+  express.static(path.join(__dirname, 'public'), {
+    extensions: ['html'],
+    setHeaders: (res) => res.setHeader('Cache-Control', 'no-store, must-revalidate'),
+  })
+);
 
 /** Send page is the same single-page app; it reads location.pathname on boot. */
 app.get('/s/:code', (req, res) => {
@@ -155,6 +166,17 @@ app.get('/s/:code', (req, res) => {
 
 app.get('/api/network', (req, res) => {
   res.json({ port: PORT, destDir: DEST_DIR, addresses: allTargets() });
+});
+
+/** Join an existing room by code, so two computers can pair without a QR scan. */
+app.post('/api/session/join', (req, res) => {
+  const code = String((req.body && req.body.code) || '').trim().toUpperCase();
+  if (!/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/.test(code)) {
+    return res.status(400).json({ error: 'codes are 6 characters' });
+  }
+  const session = getSession(code);
+  if (!session) return res.status(404).json({ error: 'no waiting laptop with that code' });
+  res.json({ code: session.code, expiresAt: session.createdAt + SESSION_TTL_MS });
 });
 
 /** One round trip: the code *and* a scannable QR for every address it is valid on. */

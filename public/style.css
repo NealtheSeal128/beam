@@ -81,6 +81,71 @@ body {
 }
 .badge.live { color: var(--ok); border-color: rgba(52, 211, 153, 0.35); }
 
+/* ─────────────────────────────  tabs  ───────────────────────────── */
+.tabs {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+.tab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 620;
+  padding: 7px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.tab.is-active {
+  background: var(--grad);
+  color: #0a0b0f;
+}
+.topbar-meta-row { display: flex; justify-content: flex-end; margin-top: 12px; }
+
+.panel { display: flex; flex-direction: column; gap: 26px; flex: 1; }
+.panel[hidden] { display: none; }
+
+/* ────────────────────────  pairing code entry  ──────────────────────── */
+.code-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.ce-label {
+  width: 100%;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+.ce-input {
+  /* 16px minimum stops iOS Safari zooming the viewport on focus. */
+  font-size: 22px;
+  letter-spacing: 0.22em;
+  text-align: center;
+  text-transform: uppercase;
+  padding: 12px 14px;
+  width: 190px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--text);
+}
+.ce-input::placeholder { color: #4b5063; letter-spacing: 0.18em; }
+.ce-input:focus {
+  outline: none;
+  border-color: var(--accent-2);
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.14);
+}
+
 /* ─────────────────────────────  hero  ───────────────────────────── */
 .hero { text-align: center; }
 .hero-title {

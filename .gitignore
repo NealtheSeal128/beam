@@ -2,3 +2,6 @@ node_modules/
 .staging/
 *.log
 .env
+
+# local benchmark scratch
+*.tmp

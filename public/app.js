@@ -15,6 +15,13 @@ function fmtSpeed(bytesPerSec) {
   return `${fmtBytes(bytesPerSec)}/s`;
 }
 
+function fmtEta(bytesPerSec, remaining) {
+  if (!Number.isFinite(bytesPerSec) || bytesPerSec < 1024 || remaining <= 0) return '';
+  const secs = remaining / bytesPerSec;
+  if (secs < 60) return ` · ${Math.ceil(secs)}s left`;
+  return ` · ${Math.ceil(secs / 60)}m left`;
+}
+
 function kindOf(type, name) {
   if (type.startsWith('video/')) return '🎬';
   if (type.startsWith('image/')) return '🖼';
@@ -43,18 +50,19 @@ async function api(url, options) {
   return data;
 }
 
-/* ─────────────────────────────  RECEIVE VIEW  ───────────────────────────── */
+/* ─────────────────────────────  RECEIVE PANEL  ───────────────────────────── */
 
 function initReceive() {
   const qrStack = document.getElementById('qr-stack');
   const pairCode = document.getElementById('pair-code');
   const fileList = document.getElementById('file-list');
-  const relayStat = document.getElementById('received-stat');
+  const receivedStat = document.getElementById('received-stat');
   const routeBadge = document.getElementById('route-badge');
   const moreBlock = document.getElementById('more-addresses');
+  const moreLabel = document.getElementById('more-label');
   const altQrs = document.getElementById('alt-qrs');
 
-  const cards = new Map(); // fileId -> {root, bar, sub, pct}
+  const cards = new Map();
 
   function renderQrCard(addr) {
     const card = document.createElement('div');
@@ -78,7 +86,7 @@ function initReceive() {
     const addrs = session.addresses || [];
     if (!addrs.length) {
       qrStack.innerHTML =
-        '<div class="error">No reachable network found. Connect this laptop to Wi-Fi, then reload.</div>';
+        '<div class="error">No reachable network found. Connect to Wi-Fi, then reload.</div>';
       return;
     }
 
@@ -87,6 +95,7 @@ function initReceive() {
 
     if (addrs.length > 1) {
       moreBlock.hidden = false;
+      moreLabel.textContent = `Other addresses (${addrs.length - 1})`;
       altQrs.innerHTML = '';
       for (const a of addrs.slice(1)) altQrs.appendChild(renderQrCard(a));
     }
@@ -104,7 +113,6 @@ function initReceive() {
       routeBadge.textContent = 'direct · live';
       routeBadge.classList.add('live');
     };
-
     es.onerror = () => {
       routeBadge.textContent = 'reconnecting';
       routeBadge.classList.remove('live');
@@ -112,10 +120,10 @@ function initReceive() {
   }
 
   function paint(view) {
-    // Wording matters here: this server IS the destination laptop, so bytes are
-    // received, never relayed onward. Calling them "relayed" would contradict
-    // the privacy claim the whole demo rests on.
-    relayStat.innerHTML = `received on this laptop: <b>${fmtBytes(view.totalBytes)}</b>`;
+    // Wording matters here: this server IS the destination computer, so bytes
+    // are received, never relayed onward. Calling them "relayed" would
+    // contradict the privacy claim the whole demo rests on.
+    receivedStat.innerHTML = `received on this computer: <b>${fmtBytes(view.totalBytes)}</b>`;
 
     if (!view.files.length) return;
     const empty = document.getElementById('empty-state');
@@ -128,7 +136,7 @@ function initReceive() {
         cards.set(f.id, card);
         fileList.appendChild(card.root);
       }
-      updateCard(card, f, view);
+      updateCard(card, f);
     }
   }
 
@@ -189,7 +197,7 @@ function initReceive() {
     card.thumb.appendChild(img);
   }
 
-  function updateCard(card, f, view) {
+  function updateCard(card, f) {
     const pct = f.size > 0 ? Math.round((f.received / f.size) * 100) : f.state === 'done' ? 100 : 0;
     card.fill.style.width = `${pct}%`;
 
@@ -200,19 +208,14 @@ function initReceive() {
         // Every byte is on disk now, so retry the preview that failed mid-upload.
         loadThumb(card, f, 1);
         card.actions.innerHTML = '';
+
         const open = document.createElement('button');
         open.className = 'btn';
         open.textContent = 'Show in folder';
         open.onclick = () =>
           api('/api/reveal', { method: 'POST', body: JSON.stringify({ fileId: f.id }) }).catch(() => {});
 
-        const copy = document.createElement('button');
-        copy.className = 'btn ghost';
-        copy.textContent = 'Copy path';
-        copy.style.marginLeft = '8px';
-        copy.onclick = () => navigator.clipboard?.writeText(f.path || '');
-
-        card.actions.append(open, copy);
+        card.actions.append(open);
       }
     } else {
       card.sub.textContent = `${fmtBytes(f.received)} of ${fmtBytes(f.size)} · ${pct}%`;
@@ -223,11 +226,17 @@ function initReceive() {
   start();
 }
 
-/* ─────────────────────────────  SEND VIEW  ───────────────────────────── */
+/* ─────────────────────────────  SEND PANEL  ───────────────────────────── */
 
-function initSend(code) {
-  document.getElementById('code-chip').textContent = code;
+/** How many chunks are in flight at once. */
+const CONCURRENCY = 4;
 
+function initSend(initialCode) {
+  const chip = document.getElementById('code-chip');
+  const codeEntry = document.getElementById('code-entry');
+  const codeInput = document.getElementById('code-input');
+  const codeGo = document.getElementById('code-go');
+  const sendSub = document.getElementById('send-sub');
   const input = document.getElementById('file-input');
   const zone = document.getElementById('dropzone');
   const progress = document.getElementById('send-progress');
@@ -238,28 +247,28 @@ function initSend(code) {
   const doneEl = document.getElementById('send-done');
   const errEl = document.getElementById('send-error');
 
-  input.addEventListener('change', () => {
-    if (input.files && input.files[0]) upload(input.files[0]);
-  });
+  let code = (initialCode || '').toUpperCase();
 
-  ['dragenter', 'dragover'].forEach((ev) =>
-    zone.addEventListener(ev, (e) => { e.preventDefault(); zone.classList.add('hot'); })
-  );
-  ['dragleave', 'drop'].forEach((ev) =>
-    zone.addEventListener(ev, (e) => { e.preventDefault(); zone.classList.remove('hot'); })
-  );
-  zone.addEventListener('drop', (e) => {
-    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-    if (f) upload(f);
-  });
+  function setCode(next) {
+    code = (next || '').toUpperCase();
+    chip.textContent = code || '······';
+    const ready = code.length === 6;
+    zone.hidden = !ready;
+    if (ready) {
+      sendSub.textContent = `Sending to the device showing ${code}.`;
+    } else {
+      sendSub.textContent = 'Enter the code shown on the receiving device.';
+    }
+    return ready;
+  }
 
   function fail(msg) {
     errEl.hidden = false;
     errEl.textContent = msg;
-    zone.hidden = false;
+    zone.hidden = !setCode(code);
   }
 
-  /** XHR (not fetch) — iOS Safari implements upload progress only here. */
+  /** XHR, not fetch: iOS Safari implements upload progress only here. */
   function putChunk(url, blob, onProgress) {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -278,6 +287,8 @@ function initSend(code) {
   }
 
   async function upload(file) {
+    if (!setCode(code)) return fail('Enter a 6-character pairing code first.');
+
     errEl.hidden = true;
     doneEl.hidden = true;
     progress.hidden = false;
@@ -288,14 +299,25 @@ function initSend(code) {
     zone.hidden = true;
 
     const started = performance.now();
-    let sent = 0;
+    // Per-offset progress, summed. Chunks land out of order, but the server
+    // writes each one at its own offset, so ordering never mattered.
+    const sentAt = new Map();
+
+    const totalSent = () => {
+      let t = 0;
+      for (const v of sentAt.values()) t += v;
+      return t;
+    };
 
     const setProgress = () => {
+      const sent = totalSent();
       const pct = file.size ? (sent / file.size) * 100 : 0;
       barEl.style.width = `${pct}%`;
       pctEl.textContent = `${Math.floor(pct)}%`;
       const secs = (performance.now() - started) / 1000;
-      detailEl.textContent = `${fmtBytes(sent)} of ${fmtBytes(file.size)} · ${fmtSpeed(sent / Math.max(secs, 0.001))}`;
+      const speed = sent / Math.max(secs, 0.001);
+      detailEl.textContent =
+        `${fmtBytes(sent)} of ${fmtBytes(file.size)} · ${fmtSpeed(speed)}` + fmtEta(speed, file.size - sent);
     };
 
     let meta;
@@ -305,52 +327,125 @@ function initSend(code) {
         body: JSON.stringify({ name: file.name, size: file.size, type: file.type || 'application/octet-stream' }),
       });
     } catch (err) {
+      const m = err.message || '';
       return fail(
-        err.message.includes('expired') || err.message.includes('not found')
-          ? 'That code has expired. Ask for a fresh one on the laptop.'
-          : err.message
+        /expired|not found|no waiting/i.test(m)
+          ? `No device is waiting with that code. Check it matches, then try again.`
+          : m
       );
     }
 
     const chunkSize = meta.chunkSize || 5 * 1024 * 1024;
+    const slices = [];
+    for (let offset = 0; offset < file.size; offset += chunkSize) {
+      slices.push({ offset, blob: file.slice(offset, Math.min(offset + chunkSize, file.size)) });
+    }
 
     try {
-      for (let offset = 0; offset < file.size; ) {
-        const slice = file.slice(offset, Math.min(offset + chunkSize, file.size));
-        // Sequential on purpose: keeps peak memory flat and progress honest.
-        await putChunk(
-          `/api/send/${code}/file/${meta.fileId}/chunk?offset=${offset}`,
-          slice,
-          (e) => { sent = offset + e.loaded; setProgress(); }
-        );
-        sent = offset + slice.size;
-        setProgress();
-        offset += slice.size;
-      }
+      // Pipeline a fixed number of chunks at a time. Each chunk is independent
+      // and written at a fixed offset, so overlap is safe; this just stops us
+      // paying a full round trip per chunk.
+      let cursor = 0;
+      const workers = Array.from({ length: Math.min(CONCURRENCY, Math.max(1, slices.length)) }, async () => {
+        while (cursor < slices.length) {
+          const { offset, blob } = slices[cursor++];
+          await putChunk(
+            `/api/send/${code}/file/${meta.fileId}/chunk?offset=${offset}`,
+            blob,
+            (e) => {
+              sentAt.set(offset, e.loaded);
+              setProgress();
+            }
+          );
+          sentAt.set(offset, blob.size);
+          setProgress();
+        }
+      });
+      await Promise.all(workers);
 
       // Zero-byte files never enter the loop above.
       await api(`/api/send/${code}/file/${meta.fileId}/complete`, { method: 'POST' });
-      sent = file.size;
       setProgress();
       doneEl.hidden = false;
-      detailEl.textContent = 'saved on the laptop';
-      zone.hidden = false;
+      detailEl.textContent = 'saved on the other device';
+      setCode(code);
       input.value = '';
     } catch (err) {
       fail(`Transfer stopped: ${err.message}. Keep both screens open and try again.`);
     }
   }
+
+  codeInput.addEventListener('input', () => {
+    codeInput.value = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+    setCode(codeInput.value);
+  });
+  codeInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') codeGo.click();
+  });
+  codeGo.addEventListener('click', async () => {
+    if (!setCode(codeInput.value)) return;
+    errEl.hidden = true;
+    // Confirm the code is real before asking for a file, so a typo surfaces
+    // immediately rather than after a large upload.
+    try {
+      await api('/api/session/join', { method: 'POST', body: JSON.stringify({ code }) });
+    } catch (err) {
+      errEl.hidden = false;
+      errEl.textContent = /no waiting/i.test(err.message)
+        ? 'No device is waiting with that code.'
+        : err.message;
+    }
+  });
+
+  input.addEventListener('change', () => {
+    if (input.files && input.files[0]) upload(input.files[0]);
+  });
+
+  ['dragenter', 'dragover'].forEach((ev) =>
+    zone.addEventListener(ev, (e) => { e.preventDefault(); zone.classList.add('hot'); })
+  );
+  ['dragleave', 'drop'].forEach((ev) =>
+    zone.addEventListener(ev, (e) => { e.preventDefault(); zone.classList.remove('hot'); })
+  );
+  zone.addEventListener('drop', (e) => {
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) upload(f);
+  });
+
+  if (code) codeInput.value = code;
+  setCode(code);
 }
 
 /* ─────────────────────────────  boot  ───────────────────────────── */
 
 (function boot() {
+  const panels = {
+    receive: document.getElementById('panel-receive'),
+    send: document.getElementById('panel-send'),
+  };
+
+  function show(which) {
+    for (const [name, el] of Object.entries(panels)) el.hidden = name !== which;
+    for (const t of document.querySelectorAll('.tab')) {
+      const on = t.dataset.panel === which;
+      t.classList.toggle('is-active', on);
+      t.setAttribute('aria-selected', String(on));
+    }
+  }
+
+  for (const t of document.querySelectorAll('.tab')) {
+    t.addEventListener('click', () => show(t.dataset.panel));
+  }
+
+  // The send panel must be wired on every page, not just /s/CODE: the Send tab
+  // is how two computers pair when neither has a camera pointed at the other.
+  // /s/CODE additionally prefills the code and skips straight to sending.
   const m = window.location.pathname.match(/^\/s\/([A-Za-z0-9]{4,10})\/?$/);
-  document.getElementById('view-receive').hidden = !!m;
+  initSend(m ? m[1].toUpperCase() : '');
   if (m) {
-    document.getElementById('view-send').hidden = false;
-    initSend(m[1].toUpperCase());
+    show('send');
   } else {
+    show('receive');
     initReceive();
   }
 })();

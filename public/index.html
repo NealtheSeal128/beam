@@ -10,63 +10,80 @@
 </head>
 <body>
 
-<!-- ─────────────────────────────  RECEIVE  ───────────────────────────── -->
-<main id="view-receive" class="view">
+<main class="view">
+
   <header class="topbar">
     <div class="brand"><span class="dot"></span> Beam</div>
-    <div class="topbar-meta"><span id="route-badge" class="badge">direct</span></div>
+    <nav class="tabs" role="tablist" aria-label="Receive or send">
+      <button class="tab is-active" data-panel="receive" role="tab" aria-selected="true">Receive</button>
+      <button class="tab" data-panel="send" role="tab" aria-selected="false">Send</button>
+    </nav>
   </header>
 
-  <section class="hero">
-    <h1 class="hero-title">Waiting to receive</h1>
-    <p class="hero-sub">Point your phone's camera at the code.</p>
-
-    <div id="qr-stack" class="qr-stack" aria-live="polite">
-      <div class="qr-skeleton"><div class="spinner"></div><span>Finding your network…</span></div>
+  <!-- ───────────────────────────  RECEIVE  ─────────────────────────── -->
+  <section id="panel-receive" class="panel">
+    <div class="topbar-meta-row">
+      <span id="route-badge" class="badge">direct</span>
     </div>
 
-    <div class="code-block">
-      <div id="pair-code" class="pair-code">······</div>
-      <div class="code-label">or type this code on your phone</div>
+    <div class="hero">
+      <h1 class="hero-title">Waiting to receive</h1>
+      <p class="hero-sub">Point the other device's camera at the code.</p>
+
+      <div id="qr-stack" class="qr-stack" aria-live="polite">
+        <div class="qr-skeleton"><div class="spinner"></div><span>Finding your network…</span></div>
+      </div>
+
+      <div class="code-block">
+        <div id="pair-code" class="pair-code">······</div>
+        <div class="code-label">or type this code on the other device</div>
+      </div>
+
+      <details id="more-addresses" class="more" hidden>
+        <summary id="more-label">Another network?</summary>
+        <div id="alt-qrs" class="alt-qrs"></div>
+      </details>
     </div>
 
-    <details id="more-addresses" class="more" hidden>
-      <summary>Another device on your network?</summary>
-      <div id="alt-qrs" class="alt-qrs"></div>
-    </details>
-  </section>
-
-  <section class="inbox">
-    <div class="inbox-head">
-      <h2>Incoming</h2>
-      <span id="received-stat" class="relay">received on this laptop: <b>0 B</b></span>
-    </div>
-    <div id="file-list" class="file-list">
-      <div class="empty" id="empty-state">
-        <div class="empty-mark">▁▁▁</div>
-        <p>Nothing yet. Scan the code above.</p>
+    <div class="inbox">
+      <div class="inbox-head">
+        <h2>Incoming</h2>
+        <span id="received-stat" class="relay">received on this computer: <b>0 B</b></span>
+      </div>
+      <div id="file-list" class="file-list">
+        <div class="empty" id="empty-state">
+          <div class="empty-mark">▁▁▁</div>
+          <p>Nothing yet. Scan the code above.</p>
+        </div>
       </div>
     </div>
+
+    <footer class="foot">
+      <p class="privacy">no cloud &middot; no account &middot; nothing left your network</p>
+      <span id="dest-path" class="mono"></span>
+    </footer>
   </section>
 
-  <footer class="foot">
-    <p class="privacy">no cloud &middot; no account &middot; nothing left your network</p>
-    <span id="dest-path" class="mono"></span>
-  </footer>
-</main>
+  <!-- ───────────────────────────  SEND  ─────────────────────────── -->
+  <section id="panel-send" class="panel" hidden>
+    <div class="topbar-meta-row">
+      <span id="code-chip" class="badge">······</span>
+    </div>
 
-<!-- ─────────────────────────────  SEND  ───────────────────────────── -->
-<main id="view-send" class="view" hidden>
-  <header class="topbar">
-    <div class="brand"><span class="dot"></span> Beam</div>
-    <div class="topbar-meta"><span id="code-chip" class="badge">······</span></div>
-  </header>
+    <div class="hero">
+      <h1 class="hero-title">Send a file</h1>
+      <p class="hero-sub" id="send-sub">Enter the code shown on the receiving device.</p>
+    </div>
 
-  <section class="send-body">
-    <h1 class="hero-title">Sending to a laptop</h1>
-    <p class="hero-sub">No app. No account. Pick a file.</p>
+    <div id="code-entry" class="code-entry">
+      <label class="ce-label" for="code-input">Pairing code</label>
+      <input id="code-input" class="ce-input mono" type="text" inputmode="latin"
+             maxlength="6" autocomplete="off" autocapitalize="characters"
+             spellcheck="false" placeholder="ABC123" />
+      <button id="code-go" class="btn" type="button">Connect</button>
+    </div>
 
-    <label id="dropzone" class="dropzone" for="file-input">
+    <label id="dropzone" class="dropzone" for="file-input" hidden>
       <input id="file-input" type="file" hidden />
       <div class="dz-icon">↑</div>
       <div class="dz-title">Choose a file</div>
@@ -86,11 +103,12 @@
     </div>
 
     <div id="send-error" class="error" hidden></div>
+
+    <footer class="foot">
+      <p class="privacy">bytes go straight to the other computer — not through us</p>
+    </footer>
   </section>
 
-  <footer class="foot">
-    <span class="mono">bytes go straight to the laptop — not through us</span>
-  </footer>
 </main>
 
 <script src="/app.js"></script>

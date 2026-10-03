@@ -37,6 +37,18 @@ The server prints the addresses your phone can reach:
 
 Files are saved to `~/Downloads/Beam/`. Override with `BEAM_DEST`.
 
+### Two computers, no camera
+
+Every screen has **Receive** and **Send** tabs, so two laptops on the same
+network can swap files in either direction without a camera:
+
+- Computer A opens the site and stays on **Receive**. It shows a code.
+- Computer B opens the site, clicks **Send**, types that code, picks a file.
+- The file lands on A. Swap the roles to send the other way.
+
+`Connect` validates the code against the waiting machine before you pick a
+file, so a typo fails immediately instead of after a long upload.
+
 | Command | What it does |
 |---|---|
 | `npm start` | Start the server (port 3000, or `$PORT`) |
@@ -65,10 +77,12 @@ Copy that URL, then hand it to the server so the QR encodes it:
 BEAM_PUBLIC_URL="https://your-tunnel.trycloudflare.com" npm start
 ```
 
-The public URL is listed **first** in the banner and gets the primary QR,
-because it works from any network while the LAN addresses only work when the
-phone happens to be on the same one. Anyone on the internet can then scan the
-code and the file arrives on your laptop.
+The public URL is listed **after** the LAN addresses, and only gets a secondary
+QR under "Other addresses". That ordering is deliberate: venue wifi frequently
+blocks or throttles tunnels outright, so a tunnel-first QR is the one most
+likely to dead-end at exactly the wrong moment. On the same network the LAN
+address is instant and offline-proof. The tunnel is the fallback, not the
+headline.
 
 | Variable | Purpose |
 |---|---|
@@ -122,9 +136,11 @@ IPv4 address the laptop has, so a judge on a network that blocks one address
 just scans another. This is the single most important robustness decision in
 the project.
 
-**Chunked uploads.** Files go up in 5 MB chunks, sequentially. That keeps peak
-memory flat on a phone, gives honest progress, and makes each offset idempotent
-— a re-sent chunk rewrites the same bytes instead of corrupting the file.
+**Chunked, pipelined uploads.** Files go up in 5 MB chunks, with four in flight
+at once. Each chunk is written at its own offset, so order never matters and a
+re-sent chunk rewrites the same bytes instead of corrupting the file. Measured
+on 25 MB over loopback: **3411 ms sequentially vs 971 ms pipelined** (about
+7 MB/s to 26 MB/s), with a byte-exact result either way.
 
 **Live progress.** The receiving laptop subscribes over Server-Sent Events, so
 the file card animates in as bytes land rather than appearing at the end.
@@ -135,6 +151,7 @@ the file card animates in as bytes land rather than appearing at the end.
 |---|---|---|
 | `GET` | `/api/network` | Reachable addresses |
 | `POST` | `/api/session` | Create a room; returns code + a QR per address |
+| `POST` | `/api/session/join` | Validate a code for computer-to-computer pairing |
 | `GET` | `/api/events/:code` | SSE stream: `state` / `file` |
 | `POST` | `/api/send/:code/meta` | Announce `{name,size,type}` → `fileId`, `chunkSize` |
 | `PUT` | `/api/send/:code/file/:id/chunk?offset=N` | Raw chunk, idempotent by offset |
@@ -170,8 +187,8 @@ gets a public URL without any of those tradeoffs.
 
 - Over plain LAN, both devices must be on a network that can reach each other.
   Across networks, use a tunnel (see above). Quick tunnels are ephemeral -- they
-  die with the process -- so they are a testing and demo tool, not production
-  infrastructure.
+  die with the process, and venue wifi often blocks them outright -- so they
+  are a backup, never the primary demo path.
 - 2 GB per file cap.
 - A 10-minute session timeout; expired codes are refused with a clear message.
 - No authentication beyond the 6-character code: anyone who reads it can send

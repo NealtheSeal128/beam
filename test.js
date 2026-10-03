@@ -151,9 +151,18 @@ async function main() {
       lanAddrs.length > 0 && lanAddrs.every((a) => a.url.endsWith(`:${PORT}`)),
       JSON.stringify((sess.addresses || []).map((a) => a.url))
     );
+    // Venue wifi routinely blocks tunnels, so a tunnel-first QR is the one most
+    // likely to dead-end at exactly the wrong moment. LAN must win.
     check(
-      'public tunnel URL is advertised first, with no port appended',
-      sess.addresses[0] && sess.addresses[0].iface === 'public' && sess.addresses[0].url === PUBLIC_URL,
+      'LAN addresses are advertised before the tunnel',
+      (sess.addresses || []).length > 1 &&
+        sess.addresses[0].iface !== 'public' &&
+        sess.addresses[sess.addresses.length - 1].iface === 'public',
+      JSON.stringify((sess.addresses || []).map((a) => a.iface))
+    );
+    check(
+      'tunnel URL is still advertised, with no port appended',
+      (sess.addresses || []).some((a) => a.url === PUBLIC_URL),
       JSON.stringify((sess.addresses || []).map((a) => a.url))
     );
     // A QR encodes its payload into modules, so the URL never appears as text in
@@ -207,7 +216,72 @@ async function main() {
     }
     check('server reports all bytes received', sent === payload.length, `${sent} vs ${payload.length}`);
 
-    /* ── 3. the exact shape a browser sends ─────────────────────────── */
+    /* ── 3. computer-to-computer pairing by code ────────────────────── */
+    // Two computers with no camera: one waits, the other types the code.
+    console.log('\npairing by code');
+    const join = await fetch(`${BASE}/api/session/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+    const joinBody = await json(join);
+    check('valid code joins the waiting computer', join.ok && joinBody.code === code, JSON.stringify(joinBody));
+
+    const lowerJoin = await fetch(`${BASE}/api/session/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: code.toLowerCase() }),
+    });
+    check('lowercase code still matches', lowerJoin.ok, `HTTP ${lowerJoin.status}`);
+
+    const badJoin = await fetch(`${BASE}/api/session/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: 'ZZZZZZ' }),
+    });
+    check('unknown code is refused', badJoin.status === 404, `HTTP ${badJoin.status}`);
+
+    const shortJoin = await fetch(`${BASE}/api/session/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: 'AB' }),
+    });
+    check('malformed code is refused', shortJoin.status === 400, `HTTP ${shortJoin.status}`);
+
+    /* ── 4. out-of-order chunks (pipelined upload) ─────────────────── */
+    // The client now sends several chunks concurrently, so they arrive in any
+    // order. Correctness rests on each chunk being written at its own offset.
+    console.log('\nout-of-order chunks');
+    const oooMeta = await (
+      await fetch(`${BASE}/api/send/${code}/meta`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'ooo.bin', size: payload.length, type: 'application/octet-stream' }),
+      })
+    ).json();
+    const ORDER = [2, 0, 1];
+    for (const i of ORDER) {
+      const slice = payload.subarray(bounds[i], bounds[i + 1]);
+      const r = await fetch(`${BASE}/api/send/${code}/file/${oooMeta.fileId}/chunk?offset=${bounds[i]}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: slice,
+      });
+      if (!r.ok) { check(`out-of-order chunk ${i}`, false, `HTTP ${r.status}`); break; }
+    }
+    const oooDone = await fetch(`${BASE}/api/send/${code}/file/${oooMeta.fileId}/complete`, { method: 'POST' });
+    const oooBody = await json(oooDone);
+    check('complete accepts a scrambled upload', oooDone.ok, JSON.stringify(oooBody));
+    if (oooBody && oooBody.path) {
+      const scrambled = await fsp.readFile(oooBody.path);
+      check(
+        'scrambled chunks reassemble byte-exact',
+        scrambled.equals(payload),
+        `${scrambled.length} vs ${payload.length}`
+      );
+    }
+
+    /* ── 5. the exact shape a browser sends ─────────────────────────── */
     // Regression: Blob.slice() produces a type-less Blob, so the browser omits
     // the Content-Type header. A `'*/*'` body-parser matcher silently refuses
     // to parse and every chunk is rejected as empty. This failed for real once.
