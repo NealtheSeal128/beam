@@ -138,9 +138,18 @@ the project.
 
 **Chunked, pipelined uploads.** Files go up in 5 MB chunks, with four in flight
 at once. Each chunk is written at its own offset, so order never matters and a
-re-sent chunk rewrites the same bytes instead of corrupting the file. Measured
-on 25 MB over loopback: **3411 ms sequentially vs 971 ms pipelined** (about
-7 MB/s to 26 MB/s), with a byte-exact result either way.
+re-sent chunk rewrites the same bytes instead of corrupting the file.
+
+Two measurements, kept distinct because they measure different things:
+
+- *Concurrency A/B*, same tool both times, only the number of in-flight chunks
+  changed: 25 MB took **3411 ms** with one chunk in flight and **971 ms** with
+  five. Both byte-exact.
+- *End to end through the real client UI*: 26 MB (six chunks, four in flight)
+  in **553 ms**, about **47 MB/s**, byte-exact.
+
+A real phone over Wi-Fi will be far slower than loopback; the point of the
+pipelining is that it scales with whatever the link gives you.
 
 **Live progress.** The receiving laptop subscribes over Server-Sent Events, so
 the file card animates in as bytes land rather than appearing at the end.

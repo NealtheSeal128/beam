@@ -309,6 +309,19 @@ function initSend(initialCode) {
       return t;
     };
 
+    // With several chunks in flight, upload.onprogress fires constantly and a
+    // DOM write per event throttles the transfer itself -- it cost ~10x on a
+    // 26 MB upload. Coalesce to at most one paint per frame.
+    let paintQueued = false;
+    const scheduleProgress = () => {
+      if (paintQueued) return;
+      paintQueued = true;
+      requestAnimationFrame(() => {
+        paintQueued = false;
+        setProgress();
+      });
+    };
+
     const setProgress = () => {
       const sent = totalSent();
       const pct = file.size ? (sent / file.size) * 100 : 0;
@@ -354,11 +367,11 @@ function initSend(initialCode) {
             blob,
             (e) => {
               sentAt.set(offset, e.loaded);
-              setProgress();
+              scheduleProgress();
             }
           );
           sentAt.set(offset, blob.size);
-          setProgress();
+          scheduleProgress();
         }
       });
       await Promise.all(workers);
