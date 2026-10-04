@@ -197,7 +197,12 @@ app.use(
 );
 
 app.get('/api/network', (req, res) => {
-  res.json({ port: PORT, destDir: DEST_DIR, addresses: allTargets() });
+  res.json({
+    port: PORT,
+    destDir: DEST_DIR,
+    addresses: allTargets(),
+    hosted: Boolean(process.env.BEAM_PUBLIC_URL),
+  });
 });
 
 /** Current state of a room. Used by the client's polling fallback for SSE. */
@@ -237,7 +242,15 @@ app.post('/api/session', async (req, res) => {
       }))
     );
 
-    res.json({ code, expiresAt: session.createdAt + SESSION_TTL_MS, destDir: DEST_DIR, addresses });
+    res.json({
+      code,
+      expiresAt: session.createdAt + SESSION_TTL_MS,
+      destDir: DEST_DIR,
+      addresses,
+      // Tells the page whether it is talking to a laptop on the same network or
+      // to a hosted server, so it can describe the route truthfully.
+      hosted: Boolean(process.env.BEAM_PUBLIC_URL),
+    });
   } catch (err) {
     res.status(500).json({ error: String(err && err.message) });
   }

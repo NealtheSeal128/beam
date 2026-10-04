@@ -144,6 +144,7 @@ async function main() {
       code
     );
     check('dest dir reported', typeof sess.destDir === 'string' && sess.destDir.length > 0);
+    check('session reports hosted mode', sess.hosted === true, String(sess.hosted));
     check('at least one address', (sess.addresses || []).length > 0);
     const lanAddrs = (sess.addresses || []).filter((a) => a.iface !== 'public');
     check(
@@ -449,6 +450,14 @@ async function main() {
       const r = await fetch(BASE + p);
       check(`GET ${p} serves 200`, r.ok, `HTTP ${r.status}`);
     }
+
+    const net = await json(await fetch(`${BASE}/api/network`));
+    check('network endpoint reports hosted mode', net && net.hosted === true, JSON.stringify(net && net.hosted));
+
+    // The privacy line must not claim a local route when the server is hosted.
+    const page = await (await fetch(`${BASE}/`)).text();
+    check('page has no hardcoded local-only privacy claim', !page.includes('nothing left your network'));
+    check('page ships a privacy element the client fills in', page.includes('id="privacy-receive"'));
   } finally {
     server.kill();
     await fsp.rm(DEST, { recursive: true, force: true }).catch(() => {});

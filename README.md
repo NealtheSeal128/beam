@@ -101,8 +101,8 @@ headline.
 > AirDrop's real magic isn't Bluetooth. It's that it works with zero thought. So
 > we stole *that* — and threw away the ecosystem lock.
 >
-> *[Scan the QR.]* File's on my laptop. No account, no app, no cloud. The bytes
-> went phone to laptop over my Wi-Fi and stopped.
+> *[Scan the QR.]* File's on my laptop. No account, no app, nothing to install.
+> It works from any network — phone on cellular, laptop on anything.
 >
 > *[Hit Show in folder — Explorer lights up the file.]* That folder is real.
 >
@@ -177,10 +177,11 @@ the file card animates in as bytes land rather than appearing at the end.
   iPhone↔laptop pairing can never use it. Even in Chrome it moves roughly
   300 KB/s, so a 40 MB video would take two minutes. It is the wrong mechanism
   for the job, not a missing feature.
-- **Cloud relay.** There is no cloud in this build. The receiving laptop is the
-  server, which is what makes the privacy claim true rather than decorative. A
-  tunnel (see above) gives you a public URL without changing that: bytes still
-  terminate on your own machine.
+- **Cloud relay.** A third-party cloud service is not involved in either mode.
+  Running locally, the receiving laptop *is* the server and bytes never leave
+  the network. Running hosted, bytes transit the server you control — the UI
+  says so rather than pretending otherwise. What is true in both: no account,
+  no app, no third-party storage.
 - **Accounts.** The 6-character code is the whole auth model.
 
 ## Why not Vercel (or any serverless host)

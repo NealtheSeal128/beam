@@ -68,6 +68,15 @@ function initReceive() {
   const moreBlock = document.getElementById('more-addresses');
   const moreLabel = document.getElementById('more-label');
   const altQrs = document.getElementById('alt-qrs');
+  const privacyEl = document.getElementById('privacy-receive');
+
+  // Describe the route honestly. When Beam is hosted the bytes really do pass
+  // through the server, so claiming otherwise would be a lie on screen.
+  function setPrivacy(hosted) {
+    privacyEl.textContent = hosted
+      ? 'no account · no app · files pass through this server'
+      : 'no cloud · no account · nothing left your network';
+  }
 
   const cards = new Map();
 
@@ -88,7 +97,10 @@ function initReceive() {
     }
 
     pairCode.textContent = session.code;
-    document.getElementById('dest-path').textContent = `saving to ${session.destDir}`;
+    setPrivacy(Boolean(session.hosted));
+    document.getElementById('dest-path').textContent = session.hosted
+      ? `storing on the server at ${session.destDir}`
+      : `saving to ${session.destDir}`;
 
     const addrs = session.addresses || [];
     if (!addrs.length) {
@@ -268,6 +280,7 @@ function initReceive() {
 const CONCURRENCY = 4;
 
 function initSend(initialCode) {
+  const privacyEl = document.getElementById('privacy-send');
   const chip = document.getElementById('code-chip');
   const codeEntry = document.getElementById('code-entry');
   const codeInput = document.getElementById('code-input');
@@ -463,6 +476,16 @@ function initSend(initialCode) {
 
   if (code) codeInput.value = code;
   setCode(code);
+
+  // The send screen cannot get the flag from the room it was handed, so it
+  // asks the server directly rather than guessing at the route.
+  api('/api/network')
+    .then((info) => {
+      privacyEl.textContent = info.hosted
+        ? 'no account · no app · files pass through this server'
+        : 'no cloud · no account · nothing left your network';
+    })
+    .catch(() => {});
 }
 
 /* ─────────────────────────────  boot  ───────────────────────────── */
