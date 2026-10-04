@@ -108,9 +108,12 @@ function initReceive() {
     }
 
     listen(session.code);
-  }
-
-  function listen(code) {
+  }function listen(code) {
+    // Live progress rides SSE, but not every path in front of the server
+    // streams: a Cloudflare quick tunnel will return 200 with the right headers
+    // and then never flush the body, which would leave the receiver frozen.
+    // A slow poll runs alongside so the receiving screen is never dependent on
+    // the transport; SSE just makes it feel instant when it works.
     const es = new EventSource(`${BASE}/api/events/${code}`);
 
     es.addEventListener('state', (e) => paint(JSON.parse(e.data)));
@@ -120,10 +123,27 @@ function initReceive() {
       routeBadge.textContent = 'direct · live';
       routeBadge.classList.add('live');
     };
+
     es.onerror = () => {
       routeBadge.textContent = 'reconnecting';
       routeBadge.classList.remove('live');
     };
+
+    let lastSeen = '';
+    setInterval(async () => {
+      try {
+        const res = await fetch(`${BASE}/api/session/${code}`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const view = await res.json();
+        // Skip repaints that carry nothing new.
+        const fingerprint = JSON.stringify(view.files.map((f) => [f.id, f.received, f.state]));
+        if (fingerprint === lastSeen) return;
+        lastSeen = fingerprint;
+        paint(view);
+      } catch {
+        /* the SSE stream will carry it, or the next tick will retry */
+      }
+    }, 1500);
   }
 
   function paint(view) {

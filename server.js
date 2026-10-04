@@ -200,6 +200,13 @@ app.get('/api/network', (req, res) => {
   res.json({ port: PORT, destDir: DEST_DIR, addresses: allTargets() });
 });
 
+/** Current state of a room. Used by the client's polling fallback for SSE. */
+app.get('/api/session/:code', (req, res) => {
+  const session = getSession(req.params.code);
+  if (!session) return res.status(404).json({ error: 'session not found or expired' });
+  res.set('Cache-Control', 'no-store').json(sessionView(session));
+});
+
 /** Join an existing room by code, so two computers can pair without a QR scan. */
 app.post('/api/session/join', (req, res) => {
   const code = String((req.body && req.body.code) || '').trim().toUpperCase();

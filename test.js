@@ -232,6 +232,14 @@ async function main() {
     });
     check('lowercase code still matches', lowerJoin.ok, `HTTP ${lowerJoin.status}`);
 
+    const stateRes = await fetch(`${BASE}/api/session/${code}`);
+    const stateBody = await json(stateRes);
+    check('session state endpoint responds', stateRes.ok && stateBody.code === code, JSON.stringify(stateBody));
+    check('session state carries the file list', Array.isArray(stateBody.files) && stateBody.files.length > 0);
+
+    const stateMissing = await fetch(`${BASE}/api/session/ZZZZZZ`);
+    check('unknown code 404s on state endpoint', stateMissing.status === 404, `HTTP ${stateMissing.status}`);
+
     const badJoin = await fetch(`${BASE}/api/session/join`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
