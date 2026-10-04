@@ -1,6 +1,6 @@
 # Beam
 
-**AirDrop without the Apple tax.** Point your phone's camera at your laptop's
+**AirDrop without the Apple-tax.** Point your phone's camera at your laptop's
 screen, and the file lands on your desktop. No account, no app install, no
 cloud, no Apple device required.
 
